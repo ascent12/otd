@@ -10,6 +10,9 @@ struct otd {
 	size_t event_cap;
 	size_t event_len;
 	struct otd_event *events;
+
+	size_t display_len;
+	struct otd_display *displays;
 };
 
 #endif

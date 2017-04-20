@@ -6,21 +6,8 @@
 #include <unistd.h>
 
 #include "otd.h"
+#include "drm.h"
 #include "event.h"
-
-enum otd_display_state {
-	OTD_DISP_DISCONNECTED,
-	OTD_DISP_NEEDS_MODESET,
-	OTD_DISP_CONNECTED,
-};
-
-struct otd_display {
-	enum otd_display_state state;
-	uint32_t connector;
-	char name[16];
-
-	uint32_t crtc;
-};
 
 struct otd *otd_start(void)
 {
@@ -35,6 +22,11 @@ struct otd *otd_start(void)
 	otd->event_cap = 0;
 	otd->event_len = 0;
 	otd->events = NULL;
+
+	otd->display_len = 0;
+	otd->displays = NULL;
+
+	scan_connectors(otd);
 
 	return otd;
 
@@ -59,7 +51,19 @@ int main()
 
 	struct otd_event ev;
 	while (otd_get_event(otd, &ev)) {
-		printf("%d\n", ev.type);
+		switch (ev.type) {
+		case OTD_EV_RENDER:
+			printf("%s rendered\n", ev.display->name);
+			break;
+		case OTD_EV_DISPLAY_REM:
+			printf("%s removed\n", ev.display->name);
+			break;
+		case OTD_EV_DISPLAY_ADD:
+			printf("%s added\n", ev.display->name);
+			break;
+		default:
+			break;
+		}
 	}
 
 	otd_finish(otd);

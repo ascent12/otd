@@ -48,16 +48,14 @@ bool event_add(struct otd *otd, struct otd_event event)
 		return true;
 
 	if (otd->event_len == otd->event_cap) {
-		if (otd->event_cap == 0)
-			otd->event_cap = 8;
-		else
-			otd->event_cap *= 2;
+		size_t new_size = (otd->event_cap == 0) ? 8 : otd->event_cap * 2;
 
-		struct otd_event *new = realloc(otd->events, sizeof *otd->events * otd->event_cap);
+		struct otd_event *new = realloc(otd->events, sizeof *new * new_size);
 		if (!new) {
 			return false;
 		}
 
+		otd->event_cap = new_size;
 		otd->events = new;
 	}
 
