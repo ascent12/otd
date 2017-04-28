@@ -1,7 +1,7 @@
-LIBS = libdrm #gbm egl glesv2 dbus-1
+LIBS = libdrm gbm egl glesv2 #dbus-1
 
-CFLAGS += -g -std=gnu11 -Wall -Wextra -Wno-unused-parameter $(shell pkg-config --cflags $(LIBS))
-LDFLAGS = -g
+CFLAGS += -g -std=gnu11 -Wall -Wextra -Wno-unused-parameter $(shell pkg-config --cflags $(LIBS)) -pthread
+LDFLAGS = -g -pthread
 LDLIBS = $(shell pkg-config --libs $(LIBS))
 
 EXE = main

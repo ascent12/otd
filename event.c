@@ -1,8 +1,10 @@
 #include "otd.h"
 #include "event.h"
+#include "drm.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <poll.h>
 
 static inline void event_swap(struct otd_event *a, struct otd_event *b)
 {
@@ -13,6 +15,16 @@ static inline void event_swap(struct otd_event *a, struct otd_event *b)
 
 bool otd_get_event(struct otd *otd, struct otd_event *restrict ret)
 {
+	struct pollfd fds[] = {
+		{ .fd = otd->fd, .events = POLLIN },
+	};
+
+	if (poll(fds, 1, 0) <= 0) {
+		// Do nothing
+	} else if (fds[0].revents) {
+		get_drm_event(otd);
+	}
+
 	if (otd->event_len == 0) {
 		ret->type = OTD_EV_NONE;
 		ret->display = NULL;
@@ -42,9 +54,9 @@ bool otd_get_event(struct otd *otd, struct otd_event *restrict ret)
 	return true;
 }
 
-bool event_add(struct otd *otd, struct otd_event event)
+bool event_add(struct otd *otd, struct otd_display *disp, enum otd_event_type type)
 {
-	if (event.type == OTD_EV_NONE)
+	if (type == OTD_EV_NONE)
 		return true;
 
 	if (otd->event_len == otd->event_cap) {
@@ -63,7 +75,8 @@ bool event_add(struct otd *otd, struct otd_event event)
 
 	// Upheap
 	size_t i = otd->event_len++;
-	ev[i] = event;
+	ev[i].type = type;
+	ev[i].display = disp;
 
 	size_t j;
 	while (i > 0 && ev[i].type > ev[(j = (i - 1) / 2)].type) {

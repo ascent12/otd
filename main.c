@@ -1,65 +1,81 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdbool.h>
 #include <inttypes.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include <time.h>
+#include <GLES3/gl3.h>
+#include <pthread.h>
+#include <stdatomic.h>
 
 #include "otd.h"
 #include "drm.h"
 #include "event.h"
 
-struct otd *otd_start(void)
+static void *waiting(void *arg)
 {
-	struct otd *otd = malloc(sizeof *otd);
-	if (!otd)
-		return NULL;
+	atomic_bool *done = arg;
 
-	otd->fd = open("/dev/dri/card0", O_RDWR | O_CLOEXEC);
-	if (otd->fd < 0)
-		goto error_fd;
+	// Wait for any input
+	getchar();
+	atomic_store(done, 1);
 
-	otd->event_cap = 0;
-	otd->event_len = 0;
-	otd->events = NULL;
-
-	otd->display_len = 0;
-	otd->displays = NULL;
-
-	scan_connectors(otd);
-
-	return otd;
-
-error_fd:
-	free(otd);
 	return NULL;
-}
-
-void otd_finish(struct otd *otd)
-{
-	if (!otd)
-		return;
-
-	close(otd->fd);
-	free(otd->events);
-	free(otd);
 }
 
 int main()
 {
 	struct otd *otd = otd_start();
+	atomic_bool done = ATOMIC_VAR_INIT(0);
 
-	struct otd_event ev;
-	while (otd_get_event(otd, &ev)) {
+	float colour[3] = {1.0, 0.0, 0.0};
+	int dec = 0;
+
+	struct timespec last;
+	clock_gettime(CLOCK_MONOTONIC, &last);
+
+	pthread_t thrd;
+	pthread_create(&thrd, NULL, waiting, &done);
+
+	while (!atomic_load(&done)) {
+		struct otd_event ev;
+		if (!otd_get_event(otd, &ev))
+			continue;
+
+		struct otd_display *disp = ev.display;
+
 		switch (ev.type) {
 		case OTD_EV_RENDER:
-			printf("%s rendered\n", ev.display->name);
+			rendering_begin(disp);
+
+			struct timespec now;
+			clock_gettime(CLOCK_MONOTONIC, &now);
+
+			long ms = (now.tv_sec - last.tv_sec) * 1000 +
+				(now.tv_nsec - last.tv_nsec) / 1000000;
+
+			int inc = (dec + 1) % 3;
+
+			colour[dec] -= ms / 2000.0f;
+			colour[inc] += ms / 2000.0f;
+
+			if (colour[dec] < 0.0f) {
+				colour[dec] = 0.0f;
+				colour[inc] = 1.0f;
+
+				dec = (dec + 1) % 3;
+			}
+
+			last = now;
+
+			glViewport(0, 0, disp->width, disp->height);
+			glClearColor(colour[0], colour[1], colour[2], 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT);
+
+			rendering_end(disp);
 			break;
 		case OTD_EV_DISPLAY_REM:
-			printf("%s removed\n", ev.display->name);
 			break;
 		case OTD_EV_DISPLAY_ADD:
-			printf("%s added\n", ev.display->name);
+			modeset_str(otd, ev.display, "preferred");
 			break;
 		default:
 			break;
@@ -67,4 +83,5 @@ int main()
 	}
 
 	otd_finish(otd);
+	pthread_join(thrd, NULL);
 }

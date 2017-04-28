@@ -16,7 +16,6 @@ struct otd_event {
 };
 
 bool otd_get_event(struct otd *otd, struct otd_event *restrict ret);
-
-bool event_add(struct otd *otd, struct otd_event event);
+bool event_add(struct otd *otd, struct otd_display *disp, enum otd_event_type type);
 
 #endif
