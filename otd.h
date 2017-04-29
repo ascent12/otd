@@ -1,12 +1,16 @@
 #ifndef LIBOTD_H
 #define LIBOTD_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <EGL/egl.h>
 #include <gbm.h>
 
+#include "session.h"
+
 struct otd {
 	int fd;
+	bool paused;
 
 	// Priority Queue (Max-heap)
 	size_t event_cap;
@@ -24,6 +28,8 @@ struct otd {
 		EGLConfig conf;
 		EGLContext context;
 	} egl;
+
+	struct otd_session session;
 };
 
 struct otd *otd_start(void);

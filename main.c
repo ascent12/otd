@@ -14,8 +14,12 @@ static void *waiting(void *arg)
 {
 	atomic_bool *done = arg;
 
-	// Wait for any input
-	getchar();
+	struct timespec t;
+	clock_gettime(CLOCK_MONOTONIC, &t);
+
+	t.tv_sec += 5;
+
+	clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &t, NULL);
 	atomic_store(done, 1);
 
 	return NULL;
@@ -25,6 +29,9 @@ int main()
 {
 	struct otd *otd = otd_start();
 	atomic_bool done = ATOMIC_VAR_INIT(0);
+
+	if (!otd)
+		return 1;
 
 	float colour[3] = {1.0, 0.0, 0.0};
 	int dec = 0;

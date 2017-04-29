@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
+#include <errno.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 #include <drm_mode.h>
@@ -85,30 +86,44 @@ bool egl_get_config(EGLDisplay disp, EGLConfig *out)
 
 bool init_renderer(struct otd *otd)
 {
-	if (!egl_exts())
+	if (!egl_exts()) {
+		fprintf(stderr, "Could not get EGL extensions\n");
 		return false;
+	}
 
 	otd->gbm = gbm_create_device(otd->fd);
-	if (!otd->gbm)
+	if (!otd->gbm) {
+		fprintf(stderr, "Could not create gbm device: %s\n", strerror(errno));
 		return false;
+	}
 
-	if (eglBindAPI(EGL_OPENGL_ES_API) == EGL_FALSE)
+	if (eglBindAPI(EGL_OPENGL_ES_API) == EGL_FALSE) {
+		fprintf(stderr, "Could not bind GLES3 API\n");
 		goto error_gbm;
+	}
 
 	otd->egl.disp = get_platform_display(EGL_PLATFORM_GBM_MESA, otd->gbm, NULL);
-	if (otd->egl.disp == EGL_NO_DISPLAY)
+	if (otd->egl.disp == EGL_NO_DISPLAY) {
+		fprintf(stderr, "Could not create EGL display\n");
 		goto error_gbm;
+	}
 
-	if (eglInitialize(otd->egl.disp, NULL, NULL) == EGL_FALSE)
+	if (eglInitialize(otd->egl.disp, NULL, NULL) == EGL_FALSE) {
+		fprintf(stderr, "Could not initalise EGL\n");
 		goto error_egl;
+	}
 
-	if (!egl_get_config(otd->egl.disp, &otd->egl.conf))
+	if (!egl_get_config(otd->egl.disp, &otd->egl.conf)) {
+		fprintf(stderr, "Could not get EGL config\n");
 		goto error_egl;
+	}
 
 	static const EGLint attribs[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
 	otd->egl.context = eglCreateContext(otd->egl.disp, otd->egl.conf, EGL_NO_CONTEXT, attribs);
-	if (otd->egl.context == EGL_NO_CONTEXT)
+	if (otd->egl.context == EGL_NO_CONTEXT) {
+		fprintf(stderr, "Could not create EGL context\n");
 		goto error_egl;
+	}
 
 	return true;
 

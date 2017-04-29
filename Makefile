@@ -1,6 +1,7 @@
-LIBS = libdrm gbm egl glesv2 #dbus-1
+LIBS = libdrm gbm egl glesv2 libsystemd
 
-CFLAGS += -g -std=gnu11 -Wall -Wextra -Wno-unused-parameter $(shell pkg-config --cflags $(LIBS)) -pthread
+CFLAGS += -g -std=c11 -Wall -Wextra -Wno-unused-parameter $(shell pkg-config --cflags $(LIBS)) -pthread
+CPPFLAGS = -D_POSIX_C_SOURCE=200809L
 LDFLAGS = -g -pthread
 LDLIBS = $(shell pkg-config --libs $(LIBS))
 

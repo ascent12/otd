@@ -1,10 +1,11 @@
-#include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "otd.h"
 #include "drm.h"
 #include "event.h"
+#include "session.h"
 
 struct otd *otd_start(void)
 {
@@ -12,18 +13,22 @@ struct otd *otd_start(void)
 	if (!otd)
 		return NULL;
 
-	otd->fd = open("/dev/dri/card0", O_RDWR | O_CLOEXEC);
-	if (otd->fd < 0)
+	if (!otd_new_session(otd, "/dev/dri/card0")) {
+		fprintf(stderr, "Could not create new session\n");
 		goto error;
+	}
 
 	if (!init_renderer(otd)) {
-		goto error;
+		fprintf(stderr, "Could not initalise renderer\n");
+		goto error_session;
 	}
 
 	scan_connectors(otd);
 
 	return otd;
 
+error_session:
+	otd_close_session(otd);
 error:
 	free(otd);
 	return NULL;
@@ -39,6 +44,7 @@ void otd_finish(struct otd *otd)
 	}
 
 	destroy_renderer(otd);
+	otd_close_session(otd);
 
 	close(otd->fd);
 	free(otd->events);
