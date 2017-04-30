@@ -17,7 +17,7 @@ static void *waiting(void *arg)
 	struct timespec t;
 	clock_gettime(CLOCK_MONOTONIC, &t);
 
-	t.tv_sec += 5;
+	t.tv_sec += 30;
 
 	clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &t, NULL);
 	atomic_store(done, 1);

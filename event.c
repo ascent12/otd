@@ -1,6 +1,7 @@
 #include "otd.h"
 #include "event.h"
 #include "drm.h"
+#include "udev.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -17,12 +18,14 @@ bool otd_get_event(struct otd *otd, struct otd_event *restrict ret)
 {
 	struct pollfd fds[] = {
 		{ .fd = otd->fd, .events = POLLIN },
+		{ .fd = otd->udev_fd, .events = POLLIN },
 	};
 
-	if (poll(fds, 1, 0) <= 0) {
-		// Do nothing
-	} else if (fds[0].revents) {
-		get_drm_event(otd);
+	while (poll(fds, 2, 0) > 0) {
+		if (fds[0].revents)
+			get_drm_event(otd);
+		if (fds[1].revents)
+			otd_udev_event(otd);
 	}
 
 	if (otd->event_len == 0) {

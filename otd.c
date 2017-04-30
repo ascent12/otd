@@ -19,10 +19,15 @@ struct otd *otd_start(void)
 		goto error;
 	}
 
+	if (!otd_udev_start(otd)) {
+		fprintf(stderr, "Could not start udev\n");
+		goto error_session;
+	}
+
 	otd_udev_find_gpu(otd);
 	if (otd->fd == -1) {
 		fprintf(stderr, "Could not open GPU\n");
-		goto error_session;
+		goto error_udev;
 	}
 
 	if (!init_renderer(otd)) {
@@ -36,6 +41,8 @@ struct otd *otd_start(void)
 
 error_fd:
 	release_device(otd, otd->fd);
+error_udev:
+	otd_udev_finish(otd);
 error_session:
 	otd_close_session(otd);
 error:
@@ -54,7 +61,7 @@ void otd_finish(struct otd *otd)
 
 	destroy_renderer(otd);
 	otd_close_session(otd);
-	udev_unref(otd->udev);
+	otd_udev_finish(otd);
 
 	close(otd->fd);
 	free(otd->events);

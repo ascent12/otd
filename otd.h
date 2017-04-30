@@ -33,6 +33,9 @@ struct otd {
 	struct otd_session session;
 
 	struct udev *udev;
+	struct udev_monitor *mon;
+	int udev_fd;
+	char *drm_path;
 };
 
 struct otd *otd_start(void);
