@@ -12,14 +12,21 @@
 #include "session.h"
 #include "otd.h"
 
-static bool take_device(struct otd *otd, uint32_t major, uint32_t minor)
+int take_device(struct otd *restrict otd,
+		       const char *restrict path,
+		       bool *restrict paused_out)
 {
 	int ret;
+	int fd = -1;
 	sd_bus_message *msg = NULL;
 	sd_bus_error error = SD_BUS_ERROR_NULL;
 	struct otd_session *s = &otd->session;
 
-	printf("Attempting to aquire %u %u\n", major, minor);
+	struct stat st;
+	if (stat(path, &st) < 0) {
+		fprintf(stderr, "Failed to stat '%s'\n", path);
+		return -1;
+	}
 
 	ret = sd_bus_call_method(s->bus,
 				 "org.freedesktop.login1",
@@ -27,13 +34,13 @@ static bool take_device(struct otd *otd, uint32_t major, uint32_t minor)
 				 "org.freedesktop.login1.Session",
 				 "TakeDevice",
 				 &error, &msg,
-				 "uu", major, minor);
+				 "uu", major(st.st_rdev), minor(st.st_rdev));
 	if (ret < 0) {
 		fprintf(stderr, "%s\n", error.message);
 		goto error;
 	}
 
-	int fd = -1, paused = 0;
+	int paused = 0;
 	ret = sd_bus_message_read(msg, "hb", &fd, &paused);
 	if (ret < 0) {
 		fprintf(stderr, "%s\n", strerror(-ret));
@@ -42,21 +49,29 @@ static bool take_device(struct otd *otd, uint32_t major, uint32_t minor)
 
 	// The original fd seem to be closed when the message is freed
 	// so we just clone it.
-	otd->fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
-	otd->paused = paused;
+	fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+
+	if (paused_out)
+		*paused_out = paused;
 
 error:
 	sd_bus_error_free(&error);
 	sd_bus_message_unref(msg);
-	return ret >= 0;
+	return fd;
 }
 
-static void release_device(struct otd *otd, uint32_t major, uint32_t minor)
+void release_device(struct otd *otd, int fd)
 {
 	int ret;
 	sd_bus_message *msg = NULL;
 	sd_bus_error error = SD_BUS_ERROR_NULL;
 	struct otd_session *s = &otd->session;
+
+	struct stat st;
+	if (fstat(fd, &st) < 0) {
+		fprintf(stderr, "Could not stat fd %d\n", fd);
+		return;
+	}
 
 	ret = sd_bus_call_method(s->bus,
 				 "org.freedesktop.login1",
@@ -64,7 +79,7 @@ static void release_device(struct otd *otd, uint32_t major, uint32_t minor)
 				 "org.freedesktop.login1.Session",
 				 "ReleaseDevice",
 				 &error, &msg,
-				 "uu", major, minor);
+				 "uu", major(st.st_rdev), minor(st.st_rdev));
 	if (ret < 0) {
 		/* Log something */;
 	}
@@ -143,19 +158,16 @@ static void release_control(struct otd *otd)
 
 void otd_close_session(struct otd *otd)
 {
-	struct stat st;
-	if (fstat(otd->fd, &st) >= 0) {
-		release_device(otd, major(st.st_rdev), minor(st.st_rdev));
-	}
-
+	release_device(otd, otd->fd);
 	release_control(otd);
 
 	sd_bus_unref(otd->session.bus);
 	free(otd->session.id);
 	free(otd->session.path);
+	free(otd->session.seat);
 }
 
-bool otd_new_session(struct otd *otd, const char *path)
+bool otd_new_session(struct otd *otd)
 {
 	int ret;
 	struct otd_session *s = &otd->session;
@@ -163,6 +175,12 @@ bool otd_new_session(struct otd *otd, const char *path)
 	ret = sd_pid_get_session(getpid(), &s->id);
 	if (ret < 0) {
 		fprintf(stderr, "Could not get session\n");
+		goto error;
+	}
+
+	ret = sd_session_get_seat(s->id, &s->seat);
+	if (ret < 0) {
+		fprintf(stderr, "Could not get seat\n");
 		goto error;
 	}
 
@@ -194,16 +212,6 @@ bool otd_new_session(struct otd *otd, const char *path)
 		goto error_bus;
 	}
 
-	struct stat st;
-	if (stat(path, &st) < 0)
-		goto error_bus;
-
-	if (!take_device(otd, major(st.st_rdev), minor(st.st_rdev))) {
-		fprintf(stderr, "Could not take device\n");
-		release_control(otd);
-		goto error_bus;
-	}
-
 	return true;
 
 error_bus:
@@ -212,5 +220,6 @@ error_bus:
 error:
 	free(s->path);
 	free(s->id);
+	free(s->seat);
 	return false;
 }

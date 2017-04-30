@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <EGL/egl.h>
 #include <gbm.h>
+#include <libudev.h>
 
 #include "session.h"
 
@@ -30,6 +31,8 @@ struct otd {
 	} egl;
 
 	struct otd_session session;
+
+	struct udev *udev;
 };
 
 struct otd *otd_start(void);

@@ -6,6 +6,7 @@
 #include "drm.h"
 #include "event.h"
 #include "session.h"
+#include "udev.h"
 
 struct otd *otd_start(void)
 {
@@ -13,20 +14,28 @@ struct otd *otd_start(void)
 	if (!otd)
 		return NULL;
 
-	if (!otd_new_session(otd, "/dev/dri/card0")) {
-		fprintf(stderr, "Could not create new session\n");
+	if (!otd_new_session(otd)) {
+		fprintf(stderr, "Could not create session\n");
 		goto error;
+	}
+
+	otd_udev_find_gpu(otd);
+	if (otd->fd == -1) {
+		fprintf(stderr, "Could not open GPU\n");
+		goto error_session;
 	}
 
 	if (!init_renderer(otd)) {
 		fprintf(stderr, "Could not initalise renderer\n");
-		goto error_session;
+		goto error_fd;
 	}
 
 	scan_connectors(otd);
 
 	return otd;
 
+error_fd:
+	release_device(otd, otd->fd);
 error_session:
 	otd_close_session(otd);
 error:
@@ -45,6 +54,7 @@ void otd_finish(struct otd *otd)
 
 	destroy_renderer(otd);
 	otd_close_session(otd);
+	udev_unref(otd->udev);
 
 	close(otd->fd);
 	free(otd->events);
