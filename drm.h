@@ -43,7 +43,7 @@ bool init_renderer(struct otd *otd);
 void destroy_renderer(struct otd *otd);
 
 void scan_connectors(struct otd *otd);
-void modeset_str(struct otd *otd, struct otd_display *disp, const char *str);
+bool modeset_str(struct otd *otd, struct otd_display *disp, const char *str);
 void destroy_display_renderer(struct otd *otd, struct otd_display *disp);
 
 void get_drm_event(struct otd *otd);

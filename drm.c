@@ -2,6 +2,7 @@
 #include "drm.h"
 #include "event.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -271,7 +272,50 @@ static void init_display_renderer(struct otd *otd, struct otd_display *disp)
 	gbm_surface_release_buffer(disp->gbm, bo);
 }
 
-void modeset_str(struct otd *otd, struct otd_display *disp, const char *str)
+static drmModeModeInfo *select_mode(size_t num_modes,
+				    drmModeModeInfo modes[static num_modes],
+				    drmModeCrtc *old_crtc,
+				    const char *str)
+{
+	if (strcmp(str, "preferred") == 0)
+		return &modes[0];
+
+	if (strcmp(str, "current") == 0) {
+		if (!old_crtc) {
+			fprintf(stderr, "Display does not have currently configured mode\n");
+			return NULL;
+		}
+
+		for (size_t i = 0; i < num_modes; ++i) {
+			if (memcmp(&modes[i], &old_crtc->mode, sizeof modes[0]) == 0)
+				return &modes[i];
+		}
+
+		// We should never get here
+		assert(0);
+	}
+
+	unsigned width = 0;
+	unsigned height = 0;
+	unsigned rate = 0;
+	int ret;
+
+	if ((ret = sscanf(str, "%ux%u@%u", &width, &height, &rate)) != 2 && ret != 3) {
+		fprintf(stderr, "Invalid modesetting string\n");
+		return NULL;
+	}
+
+	for (size_t i = 0; i < num_modes; ++i) {
+		if (modes[i].hdisplay == width &&
+		    modes[i].vdisplay == height &&
+		    (!rate || modes[i].vrefresh == rate))
+			return &modes[i];
+	}
+
+	return NULL;
+}
+
+bool modeset_str(struct otd *otd, struct otd_display *disp, const char *str)
 {
 	drmModeConnector *conn = drmModeGetConnector(otd->fd, disp->connector);
 	if (!conn || conn->connection != DRM_MODE_CONNECTED || conn->count_modes == 0)
@@ -289,12 +333,15 @@ void modeset_str(struct otd *otd, struct otd_display *disp, const char *str)
 		free(curr_enc);
 	}
 
-	if (strcmp(str, "preferred") == 0) {
-		disp->active_mode = &disp->modes[0];
-	} else {
-		// TODO: Deal with other modes
-		disp->active_mode = &disp->modes[0];
+	disp->active_mode = select_mode(disp->num_modes, disp->modes, disp->old_crtc, str);
+	if (!disp->active_mode) {
+		fprintf(stderr, "Could not find mode '%s' for %s\n", str, disp->name);
+		goto error;
 	}
+
+	fprintf(stderr, "Configuring %s with mode %ux%u@%u\n",
+		disp->name, disp->active_mode->hdisplay, disp->active_mode->vdisplay,
+		disp->active_mode->vrefresh);
 
 	drmModeRes *res = drmModeGetResources(otd->fd);
 	if (!res)
@@ -335,13 +382,14 @@ void modeset_str(struct otd *otd, struct otd_display *disp, const char *str)
 
 	init_display_renderer(otd, disp);
 
-	return;
+	return true;
 error:
-	printf("Failed\n");
 	disp->state = OTD_DISP_DISCONNECTED;
 	drmModeFreeConnector(conn);
 
 	event_add(otd, disp, OTD_EV_DISPLAY_REM);
+
+	return false;
 }
 
 

@@ -194,7 +194,6 @@ bool otd_new_session(struct otd *otd)
 		goto error;
 
 	sprintf(s->path, fmt, s->id);
-	printf("%s\n", s->path);
 
 	ret = sd_bus_open_system(&s->bus);
 	if (ret < 0) {

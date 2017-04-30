@@ -1,8 +1,8 @@
 LIBS = libdrm gbm egl glesv2 libsystemd libudev
 
-CFLAGS += -g -std=c11 -Wall -Wextra -Wno-unused-parameter $(shell pkg-config --cflags $(LIBS)) -pthread
+CFLAGS += -g -std=c11 -Wall -Wextra -Wno-unused-parameter $(shell pkg-config --cflags $(LIBS))
 CPPFLAGS = -D_POSIX_C_SOURCE=200809L
-LDFLAGS = -g -pthread
+LDFLAGS = -g
 LDLIBS = $(shell pkg-config --libs $(LIBS))
 
 EXE = main
