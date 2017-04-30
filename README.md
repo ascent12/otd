@@ -32,6 +32,10 @@ Error-handling and logging extremely crappy. There are probably several bugs.
 - libsystemd
 
 ## Example
+**DO NOT OPEN WITHIN X OR A WAYLAND COMPOSITOR**  
+It messes with your ability to change virtual terminals until you reboot your computer.
+This needs to be fixed eventually.
+
 ```
 make
 ./main

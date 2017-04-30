@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
 
 #include "otd.h"
 #include "drm.h"
@@ -19,13 +20,31 @@ struct {
 } displays[8];
 int num_displays = 0;
 
+noreturn void usage(const char *name, int ret)
+{
+	fprintf(stderr, "usage: %s [-o <name> [-m <mode>]]*\n"
+			"\n"
+			"  -h       \tDisplay this help text\n"
+			"  -o <name>\tWhich diplay to use. e.g. DVI-I-1.\n"
+			"  -m <mode>\tWhich mode to use. It must come after an -o option.\n"
+			"           \tMust be either 'preferred', 'current', widthxheight\n"
+			"           \tor widthxheight@rate. Defaults to 'preferred'.\n"
+			"\n"
+			"example: %s -o DVI-I-1 -m 1920x1080@60 -o DP-1 -m 1920x1200\n",
+			name, name);
+
+	exit(ret);
+}
+
 void parse_args(int argc, char *argv[])
 {
 	int c;
 	int i = -1;
 
-	while ((c = getopt(argc, argv, "o:m:")) != -1) {
+	while ((c = getopt(argc, argv, "ho:m:")) != -1) {
 		switch (c) {
+		case 'h':
+			usage(argv[0], 0);
 		case 'o':
 			i = num_displays++;
 
@@ -47,9 +66,13 @@ void parse_args(int argc, char *argv[])
 			i = -1;
 			break;
 		default:
-			fprintf(stderr, "Unknown option\n");
-			exit(1);
+			usage(argv[0], 1);
 		}
+	}
+
+	// Trailing args
+	if (optind != argc) {
+		usage(argv[0], 1);
 	}
 }
 
